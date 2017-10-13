@@ -28,7 +28,12 @@
         h3 Parameters
         p {{ strategy }} Parameters:
         textarea.params(v-model='rawStratParams')
-        p.bg--red.p1(v-if='rawStratParamsError') {{ rawStratParamsError.message }}
+        .bf
+          .checkbox
+            label(for='bruteforce') Bruteforce
+            input(type='checkbox', name='bruteforce', v-model='bruteForce')
+            em.label-like test all combinations
+    p.bg--red.p1(v-if='rawStratParamsError') {{ rawStratParamsError.message }}
 </template>
 
 <script>
@@ -51,7 +56,9 @@ export default {
       rawStratParamsError: false,
 
       emptyStrat: false,
-      stratParams: {}
+      stratParams: {},
+
+      bruteForce: false
     };
   },
   created: function () {
@@ -73,6 +80,11 @@ export default {
       this.rawStratParams = strat.params;
       this.emptyStrat = strat.empty;
 
+      this.emitConfig();
+    },
+    bruteForce: function(value) {
+      // Configure the brute forcer
+      if (value) { this.configBruteForce(); }
       this.emitConfig();
     },
     candleSize: function() { this.emitConfig() },
@@ -116,6 +128,12 @@ export default {
       this.parseParams();
       this.$emit('stratConfig', this.config);
     },
+    configBruteForce: function() {
+      console.log('Configuring brute force from strategy params :', toml.parse(this.rawStratParams));
+      window.bruteForcer = new MarketBacktestBruteforcer();
+      window.bruteForcer.configure(toml.parse(this.rawStratParams));
+      console.log('bruteforcer config: ', window.bruteForcer.config);
+    },
     parseParams: function() {
       try {
         this.stratParams = toml.parse(this.rawStratParams);
@@ -141,5 +159,24 @@ export default {
 
 .align {
   padding-left: 1em;
+}
+
+.bf .checkbox label {
+  margin-top: 10px;
+  margin-left: 10px;
+}
+
+.bf .label-like {
+  display: inline;
+}
+
+.bf .checkbox input[type="checkbox"] {
+  display: inline;
+  margin-right: 5px;
+  margin-left: 10px;
+}
+
+.bf .checkbox input[type="checkbox"] {
+  width: auto;
 }
 </style>

@@ -3,6 +3,8 @@ import Vue from 'vue'
 
 import { wsPath } from '../../tools/api'
 import initializeState from '../../store/init'
+import { MarketBacktestBruteforcer } from '../../tools/bruteforcer'
+window.MarketBacktestBruteforcer = MarketBacktestBruteforcer
 
 var socket = null;
 

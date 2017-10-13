@@ -2,18 +2,14 @@
   div
     .hr.contain
     div.contain
-      h3 Backtest result
-    result-summary(:report='result.report')
-    .hr.contain
-    chart(:data='result', height='500')
-    .hr.contain
-    roundtripTable(:roundtrips='result.roundtrips')
-    div(v-for='result in bruteForceResult')
+      h3 Bruteforce result
+    div(v-for='result in bruteForceResults')
       result-summary(:report='result.report')
-      .hr.contain
-      chart(:data='result', height='500')
-      .hr.contain
-      roundtripTable(:roundtrips='result.roundtrips')
+      .hr
+      // .hr.contain
+      // chart(:data='result', height='500')
+      // .hr.contain
+      // roundtripTable(:roundtrips='result.roundtrips')
 </template>
 
 <script>
@@ -22,7 +18,7 @@ import chart from './chartWrapper.vue'
 import roundtripTable from './roundtripTable.vue'
 
 export default {
-  props: ['result'],
+  props: ['bruteForceResults'],
   data: () => {
     return {}
   },
