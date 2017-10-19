@@ -16,26 +16,65 @@ import {post} from './ajax'
    }
 
    /**
+    * From a list of params, prepare their param names
+    */
+   prepareParamNames(params) {
+     const paramNames = Object.keys(params);
+     let subParams;
+     for (let i = 0; i < paramNames.length; i++) {
+       if (typeof(params[paramNames[i]]) == 'object') {
+         subParams = Object.keys(params[paramNames[i]]);
+         for (let i2 = 0; i2 < subParams.length; i2++) {
+           paramNames.push(paramNames[i]+'.'+subParams[i2]);
+           if (i2+1==subParams.length) {
+             paramNames.splice(i, 1);
+           }
+         }
+       }
+     }
+     return paramNames;
+   }
+
+   /**
+    * Transforms '.' notation to JSON object
+    */
+   transformParamNames(params) {
+     let finalParams = {}, paramsKeys = Object.keys(params), rootKey, childKey, dotI;
+     for (var i = 0; i < paramsKeys.length; i++) {
+       dotI = paramsKeys[i].indexOf('.');
+       if (dotI != -1) {
+         rootKey = paramsKeys[i].slice(0,dotI);
+         childKey = paramsKeys[i].slice(dotI+1, paramsKeys[i].length);
+         if (!finalParams[rootKey]) {
+           finalParams[rootKey] = {};
+         }
+         finalParams[rootKey][childKey] = params[rootKey+'.'+childKey]
+       } else {
+         finalParams[paramsKeys[i]] = params[paramsKeys[i]];
+       }
+     }
+     return finalParams;
+   }
+
+   /**
     * Prepares the parameter value ranges to test from a strategy
     * @param params : the params used to prepare the ranges to test
     * @return paramsConfig : the configuration of params to brute force
     */
    prepareRangesFromParams(params) {
     //  console.log('Preparing the value ranges from those params: ', params);
-     const paramNames = Object.keys(params); // TODO: consider nested params, only first level params are considered
-     let paramsConfig = [];
-
-     for (var i = 0; i < paramNames.length; i++) {
-       if (typeof(params[paramNames[i]]) != 'object') {
-         paramsConfig.push({
-           name:  paramNames[i],
-           from:  params[paramNames[i]],          // TODO: this has to be dynamic and valid
-           to:    (params[paramNames[i]] + 100),  // TODO: this has to be dynamic and valid
-           step:  1                               // TODO: this has to be dynamic and valid
-         });
-       }
+     const paramNames = this.prepareParamNames(params);
+     let paramsConfig = [], dotPos, paramValue;
+     for (let i = 0; i < paramNames.length; i++) {
+       dotPos = paramNames[i].indexOf('.');
+       paramValue = dotPos != -1 ? eval('params["'+paramNames[i].slice(0, dotPos)+'"]["'+paramNames[i].slice(dotPos+1, paramNames[i].length)+'"]') : params[paramNames[i]];
+       paramsConfig.push({
+         name:  paramNames[i],
+         from:  paramValue - 5,      // TODO: this has to be dynamic and valid
+         to:    paramValue + 5 ,     // TODO: this has to be dynamic and valid
+         step:  1                    // TODO: this has to be dynamic and valid
+       });
      }
-     debugger
      return paramsConfig;
    }
 
@@ -56,7 +95,7 @@ import {post} from './ajax'
        this.config.bruteforceParamsPermutations.push({
         //  currency:  this.config.pairList[i].slice(0,3),
         //  asset:     this.config.pairList[i].slice(3,6),
-         params:    permuteParams[i]
+         params:    this.transformParamNames(permuteParams[i])
        });
      }
    }

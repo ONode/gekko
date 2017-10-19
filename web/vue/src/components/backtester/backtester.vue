@@ -39,64 +39,63 @@ export default {
 
       this.backtestable = true;
     },
-    run: function() {
-      debugger
+    getReport: function(next, resetFetchingState) {
       const self = this;
+      if (!resetFetchingState) { resetFetchingState = true; }
+      if (resetFetchingState) {
+        this.backtestState = 'fetching';
+      }
+      const req = {
+        gekkoConfig: this.config,
+        data: {
+          candleProps: ['close', 'start'],
+          indicatorResults: true,
+          report: true,
+          roundtrips: true,
+          trades: true
+        }
+      }
+      if (next) {
+        return post('backtest', req, (error, response) => {
+          self.bruteForceResultState = 'newResult';
+          self.backtestState = 'fetched';
+          self.backtestResult = response;
+          self.bruteForceResults.push(response);
+          next(error, response);
+        });
+      } else {
+        return post('backtest', req, (error, response) => {
+          self.backtestState = 'fetched';
+          self.backtestResult = response;
+        });
+      }
+    },
+    getReports: function(bruteforceParamsPermutations, i) {
+      const self = this;
+      if (!i) { i = 0; }
+      while (i < bruteforceParamsPermutations.length) {
+        console.log(' + Testing strategy with params: ', bruteforceParamsPermutations[i]['params']);
+        // Prepare config using a permuted params combination
+        this.config[this.config.tradingAdvisor.method] = bruteforceParamsPermutations[i]['params'];
+        return (function(i) {
+          i++;
+          self.getReport((err, response) => {
+            if (!err) {
+              self.getReports(bruteforceParamsPermutations, i);
+            }
+          }, false);
+        })(i);
+      }
+    },
+    run: function() {
       // Are we brute forcing the strategy params?
       if (window.bruteForcer && window.bruteForcer.isConfigured()) {
         // window.bruteForceResult = { };
-        self.bruteForceResults = [];
-
-        let i = 0;
-        function myLoop (i) {
-          if (i < window.bruteForcer.config.bruteforceParamsPermutations.length) {
-            setTimeout(function () {
-              this.backtestState = 'fetching';
-              self.bruteForceResultState = 'fetching';
-              console.log(' + Testing strategy with params: ', window.bruteForcer.config.bruteforceParamsPermutations[i]['params']);
-              // Prepare config using a permuted params combination
-              self.config[self.config.tradingAdvisor.method] = window.bruteForcer.config.bruteforceParamsPermutations[i]['params'];
-              const req = {
-                gekkoConfig: self.config,
-                data: {
-                  candleProps: ['close', 'start'],
-                  indicatorResults: true,
-                  report: true,
-                  roundtrips: true,
-                  trades: true
-                }
-              }
-              post('backtest', req, (error, response) => {
-                self.bruteForceResultState = 'newResult';
-                this.backtestState = 'fetched';
-                // self.backtestResult = response;
-                // window.bruteForceResult[response['report']['relativeProfit']] = response;
-                self.bruteForceResults.push(response);
-              });
-              i++;
-              myLoop(i);
-            }, 5000);
-          }
-        }
-        myLoop(i);
+        this.bruteForceResults = [];
+        this.getReports(window.bruteForcer.config.bruteforceParamsPermutations);
       } else {
       // Are we just testing a single set of params?
-        this.backtestState = 'fetching';
-        const req = {
-          gekkoConfig: this.config,
-          data: {
-            candleProps: ['close', 'start'],
-            indicatorResults: true,
-            report: true,
-            roundtrips: true,
-            trades: true
-          }
-        }
-
-        post('backtest', req, (error, response) => {
-          this.backtestState = 'fetched';
-          this.backtestResult = response;
-        });
+        this.getReport();
       }
     }
   },
