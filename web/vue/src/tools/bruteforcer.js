@@ -1,4 +1,5 @@
 import {post} from './ajax'
+let shuffle = require('shuffle-array')
 
 /**
  * Market brute forcer (proof of concept)
@@ -70,8 +71,8 @@ import {post} from './ajax'
        paramValue = dotPos != -1 ? eval('params["'+paramNames[i].slice(0, dotPos)+'"]["'+paramNames[i].slice(dotPos+1, paramNames[i].length)+'"]') : params[paramNames[i]];
        paramsConfig.push({
          name:  paramNames[i],
-         from:  paramValue - 5,      // TODO: this has to be dynamic and valid
-         to:    paramValue + 5 ,     // TODO: this has to be dynamic and valid
+         from:  paramValue,      // TODO: this has to be dynamic and valid
+         to:    paramValue + 2,     // TODO: this has to be dynamic and valid
          step:  1                    // TODO: this has to be dynamic and valid
        });
      }
@@ -88,7 +89,8 @@ import {post} from './ajax'
      this.config.bruteforceParamsPermutations = [];
 
      // Permute the parameters
-     const permuteParams = this.permuteParams();
+     let permuteParams = this.permuteParams();
+     permuteParams = shuffle(permuteParams);
      // For each parameter combination
      for (let i = 0; i < permuteParams.length; i++) {
        // Push test combinations
