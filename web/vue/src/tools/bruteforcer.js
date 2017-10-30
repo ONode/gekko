@@ -21,11 +21,11 @@ let shuffle = require('shuffle-array')
     */
    prepareParamNames(params) {
      const paramNames = Object.keys(params);
-     let subParams;
-     for (let i = 0; i < paramNames.length; i++) {
+     let subParams, i, i2;
+     for (i = 0; i < paramNames.length; i++) {
        if (typeof(params[paramNames[i]]) == 'object') {
          subParams = Object.keys(params[paramNames[i]]);
-         for (let i2 = 0; i2 < subParams.length; i2++) {
+         for (i2 = 0; i2 < subParams.length; i2++) {
            paramNames.push(paramNames[i]+'.'+subParams[i2]);
            if (i2+1==subParams.length) {
              paramNames.splice(i, 1);
@@ -40,8 +40,8 @@ let shuffle = require('shuffle-array')
     * Transforms '.' notation to JSON object
     */
    transformParamNames(params) {
-     let finalParams = {}, paramsKeys = Object.keys(params), rootKey, childKey, dotI;
-     for (var i = 0; i < paramsKeys.length; i++) {
+     let finalParams = {}, paramsKeys = Object.keys(params), rootKey, childKey, dotI, i;
+     for (i = 0; i < paramsKeys.length; i++) {
        dotI = paramsKeys[i].indexOf('.');
        if (dotI != -1) {
          rootKey = paramsKeys[i].slice(0,dotI);
@@ -71,7 +71,7 @@ let shuffle = require('shuffle-array')
        paramValue = dotPos != -1 ? eval('params["'+paramNames[i].slice(0, dotPos)+'"]["'+paramNames[i].slice(dotPos+1, paramNames[i].length)+'"]') : params[paramNames[i]];
        paramsConfig.push({
          name:  paramNames[i],
-         from:  paramValue,      // TODO: this has to be dynamic and valid
+         from:  paramValue - 2,      // TODO: this has to be dynamic and valid
          to:    paramValue + 2,     // TODO: this has to be dynamic and valid
          step:  1                    // TODO: this has to be dynamic and valid
        });
@@ -115,19 +115,19 @@ let shuffle = require('shuffle-array')
     * Prepares the parameters values from a configuration of parameters
     */
    prepareParamsValues(paramsConfig) {
-     let paramsValues = {};
+     let paramsValues = {}, i, i2;
 
-     for (let i = 0; i < paramsConfig.length; i++) {
+     for (i = 0; i < paramsConfig.length; i++) {
        const pmConf = paramsConfig[i];
        paramsValues[pmConf['name']] = [];
        // Prepare "from" -- "to" combinations
        if (typeof(pmConf['from']) != 'undefined' && typeof(pmConf['to']) != 'undefined') {
-          for (let i2 = pmConf['from']; i2 <= pmConf['to']; i2=i2+pmConf['step']) {
+          for (i2 = pmConf['from']; i2 <= pmConf['to']; i2=i2+pmConf['step']) {
             paramsValues[pmConf['name']].push(i2);
           }
        // Prepare "values" combinations
        } else if (pmConf['values']) {
-          for (let i2 = 0; i2 < pmConf['values'].length; i2++) {
+          for (i2 = 0; i2 < pmConf['values'].length; i2++) {
             paramsValues[pmConf['name']].push(pmConf['values'][i2]);
           }
        }
@@ -159,18 +159,18 @@ let shuffle = require('shuffle-array')
      }
      const inputParamNames = Object.keys(inputParamsValues);
 
-     for (let i = 0; i < inputParamNames.length; i++) {
+     let i, i2, valuesToConsider, combinationMade, newParamsCombinations, newInputParamsValues;
+     for (i = 0; i < inputParamNames.length; i++) {
        if (typeof(paramsCombinations[inputParamNames[i]]) == 'undefined') {
          const inputParamValues = inputParamsValues[inputParamNames[i]];
-         let valuesToConsider;
-         for (var i2 = 0; i2 < inputParamValues.length; i2++) {
+         for (i2 = 0; i2 < inputParamValues.length; i2++) {
            (function(paramCombinationNames, inputParamsValues, paramsCombinations, permuted, valuesToConsider) {
-             let combinationMade = false;
+             combinationMade = false;
              // Only store a permutation when we are considering values for all inputs
              valuesToConsider = inputParamsValues[inputParamNames[i]].slice(i2+1, inputParamsValues[inputParamNames[i]].length);
              inputParamsValues[inputParamNames[i]] = valuesToConsider;
              // Prepare a new set of parameter combinations
-             let newParamsCombinations = Object.assign({}, paramsCombinations);
+             newParamsCombinations = Object.assign({}, paramsCombinations);
              newParamsCombinations[inputParamNames[i]] = inputParamValues[i2];
              // Is the parameter combinations complete? Then push it to the permuted list
              if (Object.keys(newParamsCombinations).length == paramCombinationNames.length) {
@@ -180,7 +180,7 @@ let shuffle = require('shuffle-array')
                permuted.push(newParamsCombinations);
                newParamsCombinations = {};
              }
-             let newInputParamsValues = Object.assign({}, inputParamsValues);
+             newInputParamsValues = Object.assign({}, inputParamsValues);
              // Did we finish all possible values for a parameter?
              if (newInputParamsValues[inputParamNames[i]].length == 0) {
                // Now we remove the parameter considered from the recursive combinations

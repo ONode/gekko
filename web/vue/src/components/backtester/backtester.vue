@@ -10,7 +10,7 @@
           p Running backtest..
           spinner
     result(v-if='backtestResult && backtestState === "fetched"', :result='backtestResult')
-    bruteForceResults(v-if='bruteForceResults && bruteForceResultState === "newResult"', :bruteForceResults='bruteForceResults')
+    bruteForceResults(v-if='topResultsByProfit && bruteForceResultState === "newResult"', :topResultsByProfit='topResultsByProfit', :bruteForcedResultsCount='bruteForcedResultsCount', :bruteForceCombinationsCount='bruteForceCombinationsCount')
 </template>
 
 <script>
@@ -26,6 +26,10 @@ export default {
       backtestable: false,
       backtestState: 'idle',
       backtestResult: false,
+      bruteForcedResultsCount: "0",
+      bruteForceCombinationsCount: "0",
+      topResults: { min: undefined, max: undefined },
+      topResultsByProfit: [],
       bruteForceResults: [],
       config: false,
     }
@@ -59,8 +63,22 @@ export default {
         return post('backtest', req, (error, response) => {
           self.bruteForceResultState = 'newResult';
           self.backtestState = 'fetched';
-          self.backtestResult = response;
-          self.bruteForceResults.push(response);
+          self.bruteForcedResultsCount = (parseInt(self.bruteForcedResultsCount)+1).toString();
+          if (response.report.profit < self.topResults.min || typeof(self.topResults.min == 'undefined')) {
+            this.topResults.min = response.report.profit;
+          }
+          if (response.report.profit > self.topResults.max || typeof(self.topResults.max == 'undefined')) {
+            // Keep top 10 results by profit
+            self.topResults.max = response.report.profit;
+            Object.assign(response, { params: self.config[self.config.tradingAdvisor.method] });
+            self.topResultsByProfit.push(response);
+            self.topResultsByProfit.sort(function(a,b) {
+              return (a.report.profit < b.report.profit) ? 1 : ((b.report.profit < a.report.profit) ? -1 : 0);
+            });
+            self.topResultsByProfit = self.topResultsByProfit.slice(0, 10);
+          }
+          // Keep all results in order
+          // self.bruteForceResults.push(response);
           next(error, response);
         });
       } else {
@@ -90,8 +108,7 @@ export default {
     run: function() {
       // Are we brute forcing the strategy params?
       if (window.bruteForcer && window.bruteForcer.isConfigured()) {
-        // window.bruteForceResult = { };
-        this.bruteForceResults = [];
+        this.bruteForceCombinationsCount = window.bruteForcer.config.bruteforceParamsPermutations.length.toString();
         this.getReports(window.bruteForcer.config.bruteforceParamsPermutations);
       } else {
       // Are we just testing a single set of params?

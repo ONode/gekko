@@ -2,14 +2,15 @@
   div
     .hr.contain
     div.contain
-      h3 Bruteforce result
-    div(v-for='result in bruteForceResults')
-      result-summary(:report='result.report')
-      .hr
-      // .hr.contain
-      // chart(:data='result', height='500')
-      // .hr.contain
-      // roundtripTable(:roundtrips='result.roundtrips')
+      h3.top-10 Top 10 by profit
+      div.count Tested {{ bruteForcedResultsCount }} of {{bruteForceCombinationsCount}} combinations
+    div(v-for='topResult in topResultsByProfit')
+      div.contain
+        div.tested-params
+          span(v-for="(paramValue, paramName) in topResult.params")
+            span.param-name {{ paramName }}&nbsp;
+            span.param-value {{ paramValue }}&nbsp;
+      result-summary(:report='topResult.report')
 </template>
 
 <script>
@@ -18,7 +19,7 @@ import chart from './chartWrapper.vue'
 import roundtripTable from './roundtripTable.vue'
 
 export default {
-  props: ['bruteForceResults'],
+  props: ['bruteForcedResultsCount', 'bruteForceCombinationsCount', 'topResultsByProfit'],
   data: () => {
     return {}
   },
@@ -32,4 +33,19 @@ export default {
 </script>
 
 <style>
+  .top-10 {
+    font-weight: 600;
+  }
+  .top-10, .count {
+    text-align: center;
+  }
+  .tested-params {
+    text-align: center;
+    border: 1px dashed rgba(144,144,144,.99);
+    margin: 15px 0;
+    padding: 5px;
+  }
+  .param-name {
+    font-weight: 600;
+  }
 </style>
