@@ -31,7 +31,16 @@ A strategy is a combination of functions that get market data in the form of can
     // Based on the newly calculated
     // information, check if we should
     // update or not.
-    strat.check = function() {
+    strat.check = function(candle) {
+      // your code!
+    }
+
+    // Optional for executing code
+    // after completion of a backtest.
+    // This block will not execute in
+    // live use as a live gekko is
+    // never ending.
+    strat.end = function() {
       // your code!
     }
 
@@ -45,7 +54,7 @@ In the boilerplate we define four functions you have to write yourself. The func
 
 ### init function
 
-This function is exectuted when Gekko prepares your method, here you can initilalize some stuff you need later on. For example if you need to keep state between new candles.
+This function is executed when Gekko prepares your method, here you can initialize some stuff you need later on. For example if you need to keep state between new candles.
 
 ### update function
 
@@ -66,6 +75,70 @@ If you find out in the check function that you want to give a new advice to the 
     this.advice('short');
     // or
     this.advice('long');
+    
+### candle variables when creating your strategy
+
+You can use different candle variables when writing your strategies, depending on what you have in mind, using additional variables might help you to improve your results.
+
+Possible candle variables are:
+ - candle.close: the closing price of the candle
+ - candle.high: the highest price of the candle
+ - candle.low: the lowest price of the candle
+ - candle.volume: the trading volume of that candle
+ - candle.trades: number of trades in that candle
+ 
+Keep in mind that this variables will give you different results depending on the candle-size you're using.
+
+
+### basic strategy example
+
+This a basic strategy example that buys and sells BTC/USDT when it hits a specific price.
+
+    // Let's create our own buy and sell strategy 
+    var strat = {};
+
+    // Prepare everything our strat needs
+    strat.init = function() {
+      // setting buy price
+      this.buyPrice = 2000;
+      
+      // setting sell price
+      this.sellPrice = 2500;
+    }
+
+    // What happens on every new candle?
+    strat.update = function(candle) {
+      // your code!
+    }
+
+    // For debugging purposes.
+    strat.log = function() {
+      // your code!
+    }
+
+    // Based on the newly calculated
+    // information, check if we should
+    // update or not.
+    strat.check = function() {
+        // buy when it hits buy price
+        if(candle.close <= this.buyPrice) {
+            this.advice("long");
+            // do some output
+            console.log("buying BTC @", candle.close);
+            return;
+        }
+        
+        // sell when it hits sell price
+        if(candle.close >= this.sellPrice) {
+            this.advice("short");
+            // do some output
+            console.log("selling BTC @", candle.close);
+            console.log("Profit:", (candle.close-this.buyPrice));
+            return;
+        }
+    }
+
+    module.exports = strat;
 
 ## Strategy rules
 
@@ -94,6 +167,11 @@ or
     // add a TA-lib indicator
     this.addTalibIndicator('name', 'type', parameters);
 
+or
+
+    // add a Tulip indicator
+    this.addTulipIndicator('name', 'type', parameters);
+
 The first parameter is the name, the second is the indicator type you want and the third is an object with all indicator parameters. If you want an MACD indicator you can do it like so:
 
 In your init method:
@@ -104,13 +182,19 @@ In your init method:
 
     // add a TA-lib indicator
     var parameters = {optInFastPeriod: 10, optInSlowPeriod: 21, optInSignalPeriod: 9};
-    this.addIndicator('mytalibmacd', 'MACD', parameters);
+    this.addTalibIndicator('mytalibmacd', 'macd', parameters);
+
+    // add a Tulip indicator
+    var parameters = {optInFastPeriod: 10, optInSlowPeriod: 21, optInSignalPeriod: 9};
+    this.addTulipIndicator('mytulipmacd', 'macd', parameters);
 
 In your check or update method:
 
     var result = this.indicators.mytalibmacd.result;
 
-See the [TA-lib indicators](https://github.com/askmike/gekko/blob/stable/docs/trading_bot/talib_indicators.md) document for a list of all suppported TA-lib indicators and there required parameters.
+See the [TA-lib indicators](https://github.com/askmike/gekko/blob/stable/docs/trading_bot/talib_indicators.md) document for a list of all suppported TA-lib indicators and their required parameters.
+
+See the [Tulip indicators](https://github.com/askmike/gekko/blob/stable/docs/trading_bot/tulip_indicators.md) document for a list of all supported Tulip indicators and their required parameters.
 
 ### Configurables
 
@@ -123,12 +207,10 @@ You can create configurable parameters for your method which allows you to adjus
 
 And in your method you can use them again (for example to pass to an indicator):
 
-    // in the init:
-    var config = require('../core/util.js').getConfig();
-    this.settings = config.custom;
-
     // anywhere in your code:
     this.settings.my_custom_setting; // is now 10
+
+___The name of your configuration must be the same as the name of the strategy___
 
 ### Tool libraries
 

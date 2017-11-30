@@ -18,15 +18,12 @@ Stitcher.prototype.ago = function(ts) {
 }
 
 Stitcher.prototype.verifyExchange = function() {
-  var exchanges = require(dirs.gekko + 'exchanges');
-  var exchange = _.find(exchanges, function(e) {
-    return e.slug === config.watch.exchange.toLowerCase();
-  });
+  var exchangeChecker = require(dirs.core + 'exchangeChecker');
+  var slug = config.watch.exchange.toLowerCase();
+  var exchange = exchangeChecker.getExchangeCapabilities(slug);
 
   if(!exchange)
-    util.die(`Unsupported exchange: ${config.watch.exchange.toLowerCase()}`)
-
-  var exchangeChecker = require(util.dirs().core + 'exchangeChecker');
+    util.die(`Unsupported exchange: ${slug}`);
 
   var error = exchangeChecker.cantMonitor(config.watch);
   if(error)
@@ -80,7 +77,7 @@ Stitcher.prototype.prepareHistoricalData = function(done) {
       var idealExchangeStartTimeTS = localData.to - secondsOverlap;
       var idealExchangeStartTime = moment.unix(idealExchangeStartTimeTS).utc();
 
-      // already set the 
+      // already set the
       util.setConfigProperty(
         'tradingAdvisor',
         'firstFetchSince',
@@ -180,10 +177,14 @@ Stitcher.prototype.checkExchangeTrades = function(since, next) {
   var provider = config.watch.exchange.toLowerCase();
   var DataProvider = require(util.dirs().gekko + 'exchanges/' + provider);
 
-  var exchangeChecker = require(util.dirs().core + 'exchangeChecker');
-  var exchangeSettings = exchangeChecker.settings(config.watch)
+  var exchangeConfig = config.watch;
+  
+  // include trader config if trading is enabled
+  if (_.isObject(config.trader) && config.trader.enabled) {
+    exchangeConfig = _.extend(config.watch, config.trader);
+  }
 
-  var watcher = new DataProvider(config.watch);
+  var watcher = new DataProvider(exchangeConfig);
 
   watcher.getTrades(since, function(e, d) {
     if(_.isEmpty(d))
