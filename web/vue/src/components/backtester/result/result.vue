@@ -8,6 +8,12 @@
     chart(:data='result', height='500')
     .hr.contain
     roundtripTable(:roundtrips='result.roundtrips')
+    div(v-for='result in bruteForceResult')
+      result-summary(:report='result.report')
+      .hr.contain
+      chart(:data='result', height='500')
+      .hr.contain
+      roundtripTable(:roundtrips='result.roundtrips')
 </template>
 
 <script>
