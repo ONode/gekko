@@ -1,9 +1,7 @@
 var Kraken = require('kraken-api-es5');
 var moment = require('moment');
-var _ = require('lodash');
-
 var util = require('../core/util');
-var Errors = require('../core/error');
+var _ = require('lodash');
 var log = require('../core/log');
 
 var crypto_currencies = [
@@ -23,7 +21,7 @@ var crypto_currencies = [
   "XMR",
   "XRP",
   "ZEC",
-  "BCH"
+  "BCH",
 ];
 
 var fiat_currencies = [
@@ -39,7 +37,6 @@ var assets_without_prefix = [
   'DASH',
   'EOS',
   'GNO',
-  'USDT'
 ]
 
 // Method to check if asset/currency is a crypto currency
@@ -66,9 +63,6 @@ var addPrefix = function(value) {
 
 // Some currencies in Kraken don't use the prefix, not clearly documented
 var getAssetPair = function(asset, currency) {
-  if (asset === 'USDT')
-    return 'USDTZUSD'; // Yet another kraken inconsistency
-
   if (_.contains(assets_without_prefix, asset))
     return asset + currency;
   else
@@ -96,53 +90,44 @@ var Trader = function(config) {
   );
 }
 
-var retryCritical = {
-  retries: 10,
-  factor: 1.2,
-  minTimeout: 1 * 1000,
-  maxTimeout: 30 * 1000
-};
+var recoverableErrors = new RegExp(/(SOCKETTIMEDOUT|TIMEDOUT|CONNRESET|CONNREFUSED|NOTFOUND|API:Invalid nonce|between Cloudflare and the origin web server)/)
 
-var retryForever = {
-  forever: true,
-  factor: 1.2,
-  minTimeout: 10,
-  maxTimeout: 30
-};
-
-var recoverableErrors = new RegExp(/(SOCKETTIMEDOUT|TIMEDOUT|CONNRESET|CONNREFUSED|NOTFOUND|API:Invalid nonce|Service:Unavailable|Request timed out|Response code 520|Response code 504|Response code 502)/)
-
-Trader.prototype.processError = function(funcName, error) {
-  if (!error) return undefined;
-
-  if (!error.message.match(recoverableErrors)) {
-    log.error(`[kraken.js] (${funcName}) returned an irrecoverable error: ${error.message}`);
-    return new Errors.AbortError('[kraken.js] ' + error.message);
+Trader.prototype.retry = function(method, args, error) {
+  if (!error || !error.message.match(recoverableErrors)) {
+    log.error('[kraken.js] ', this.name, 'returned an irrecoverable error');
+    return;
   }
 
-  log.debug(`[kraken.js] (${funcName}) returned an error, retrying: ${error.message}`);
-  return new Errors.RetryError('[kraken.js] ' + error.message);
-};
+  // 5 -> 10s to avoid more rejection
+  var wait = +moment.duration(10, 'seconds');
+  log.debug('[kraken.js] (retry) ', this.name, 'returned an error, retrying..');
 
-Trader.prototype.handleResponse = function(funcName, callback) {
-  return (error, body) => {
-    if(!error) {
-      if(_.isEmpty(body) || !body.result)
-        error = new Error('NO DATA WAS RETURNED');
+  var self = this;
 
-      else if(!_.isEmpty(body.error))
-        error = new Error(body.error);
-    }
+  // make sure the callback (and any other fn)
+  // is bound to Trader
+  _.each(args, function(arg, i) {
+    if(_.isFunction(arg))
+      args[i] = _.bind(arg, self);
+  });
 
-    return callback(this.processError(funcName, error), body);
-  }
+  // run the failed method again with the same
+  // arguments after wait
+  setTimeout(
+    function() { method.apply(self, args) },
+    wait
+  );
 };
 
 Trader.prototype.getTrades = function(since, callback, descending) {
+  var args = _.toArray(arguments);
   var startTs = since ? moment(since).valueOf() : null;
 
-  var processResults = function(err, trades) {
-    if (err) return callback(err);
+  var process = function(err, trades) {
+    if (err || !trades || trades.length === 0) {
+      log.error('error getting trades', err);
+      return this.retry(this.getTrades, args, err);
+    }
 
     var parsedTrades = [];
     _.each(trades.result[this.pair], function(trade) {
@@ -158,12 +143,12 @@ Trader.prototype.getTrades = function(since, callback, descending) {
     }, this);
 
     if(descending)
-      callback(undefined, parsedTrades.reverse());
+      callback(null, parsedTrades.reverse());
     else
-      callback(undefined, parsedTrades);
+      callback(null, parsedTrades);
   };
 
-  let reqData = {
+  var reqData = {
     pair: this.pair
   };
 
@@ -172,16 +157,24 @@ Trader.prototype.getTrades = function(since, callback, descending) {
     reqData.since = startTs * 1000000;
   }
 
-  let handler = (cb) => this.kraken.api('Trades', reqData, this.handleResponse('getTrades', cb));
-  util.retryCustom(retryForever, _.bind(handler, this), _.bind(processResults, this));
+  this.kraken.api('Trades', reqData, _.bind(process, this));
 };
 
 Trader.prototype.getPortfolio = function(callback) {
-  console.log('getPortfolio');
+  var args = _.toArray(arguments);
   var setBalance = function(err, data) {
-    console.log('aa', arguments);
-    if(err) return callback(err);
-    log.debug('[kraken.js] entering "setBalance" callback after kraken-api call, data:' , data);
+    log.debug('[kraken.js] entering "setBalance" callback after kraken-api call, err:', err, ' data:' , data);
+
+    if(_.isEmpty(data))
+      err = new Error('no data (getPortfolio)');
+
+    else if(!_.isEmpty(data.error))
+      err = new Error(data.error);
+
+    if (err || !data.result) {
+      log.error('[kraken.js] ' , err);
+      return this.retry(this.getPortfolio, args, err);
+    }
 
     // When using the prefix-less assets, you remove the prefix from the assset but leave
     // it on the curreny in this case. An undocumented Kraken quirk.
@@ -204,37 +197,41 @@ Trader.prototype.getPortfolio = function(callback) {
       { name: this.currency, amount: currencyAmount }
     ];
 
-    return callback(undefined, portfolio);
+    return callback(err.message, portfolio);
   };
 
-  let handler = (cb) => this.kraken.api('Balance', {}, this.handleResponse('getPortfolio', cb));
-  util.retryCustom(retryForever, _.bind(handler, this), _.bind(setBalance, this));
+  this.kraken.api('Balance', {}, _.bind(setBalance, this));
 };
 
 // This assumes that only limit orders are being placed with standard assets pairs
 // It does not take into account volume discounts.
 // Base maker fee is 0.16%, taker fee is 0.26%.
 Trader.prototype.getFee = function(callback) {
-  const makerFee = 0.16;
-  callback(undefined, makerFee / 100);
+  var makerFee = 0.16;
+  callback(false, makerFee / 100);
 };
 
 Trader.prototype.getTicker = function(callback) {
   var setTicker = function(err, data) {
-    if (err) return callback(err);
+
+    if(!err && _.isEmpty(data))
+      err = new Error('no data (getTicker)');
+
+    else if(!err && !_.isEmpty(data.error))
+      err = new Error(data.error);
+
+    if (err)
+      return log.error('unable to get ticker', JSON.stringify(err));
 
     var result = data.result[this.pair];
     var ticker = {
       ask: result.a[0],
       bid: result.b[0]
     };
-    callback(undefined, ticker);
+    callback(err.message, ticker);
   };
 
-  let reqData = {pair: this.pair}
-
-  let handler = (cb) => this.kraken.api('Ticker', reqData, this.handleResponse('getTicker', cb));
-  util.retryCustom(retryForever, _.bind(handler, this), _.bind(setTicker, this));
+  this.kraken.api('Ticker', {pair: this.pair}, _.bind(setTicker, this));
 };
 
 Trader.prototype.roundAmount = function(amount) {
@@ -256,47 +253,63 @@ Trader.prototype.roundAmount = function(amount) {
 };
 
 Trader.prototype.addOrder = function(tradeType, amount, price, callback) {
+  var args = _.toArray(arguments);
+
   amount = this.roundAmount(amount);
   price = this.roundAmount(price); // but the link talks about rounding price... And I had the bug
 
   log.debug('[kraken.js] (addOrder)', tradeType.toUpperCase(), amount, this.asset, '@', price, this.currency);
 
   var setOrder = function(err, data) {
-    if(err) return callback(err);
-    
+
+    // console.log('blap', err, data);
+
+    if(!err && _.isEmpty(data))
+      err = new Error('no data (addOrder)');
+    else if(!err && !_.isEmpty(data.error))
+      err = new Error(data.error);
+
+    if(err) {
+      log.error('unable to ' + tradeType.toLowerCase(), err);
+      return this.retry(this.addOrder, args, err);
+    }
+
     var txid = data.result.txid[0];
-    log.debug('[kraken.js] (addOrder) added order with txid:', txid);
+    log.debug('added order with txid:', txid);
 
     callback(undefined, txid);
   };
 
-  let reqData = {
+  this.kraken.api('AddOrder', {
     pair: this.pair,
     type: tradeType.toLowerCase(),
     ordertype: 'limit',
     price: price,
     volume: amount.toString()
-  };
-
-  let handler = (cb) => this.kraken.api('AddOrder', reqData, this.handleResponse('addOrder', cb));
-  util.retryCustom(retryCritical, _.bind(handler, this), _.bind(setOrder, this));
+  }, _.bind(setOrder, this));
 };
 
 
 Trader.prototype.getOrder = function(order, callback) {
-  var getOrder = function(err, data) {
-    if(err) return callback(err);
+
+  var get = function(err, data) {
+    if(!err && _.isEmpty(data) && _.isEmpty(data.result))
+      err = new Error('no data (getOrder)');
+
+    else if(!err && !_.isEmpty(data.error))
+      err = new Error(data.error);
+
+    if(err)
+      return log.error('Unable to get order', order, JSON.stringify(err));
 
     var price = parseFloat( data.result[ order ].price );
     var amount = parseFloat( data.result[ order ].vol_exec );
     var date = moment.unix( data.result[ order ].closetm );
 
     callback(undefined, {price, amount, date});
-  };
+  }.bind(this);
 
-  let reqData = {txid: order};
-  let handler = (cb) => this.kraken.api('QueryOrders', reqData, this.handleResponse('getOrder', cb));
-  util.retryCustom(retryCritical, _.bind(handler, this), _.bind(getOrder, this));
+  this.kraken.api('QueryOrders', {txid: order}, get);
 }
 
 Trader.prototype.buy = function(amount, price, callback) {
@@ -309,22 +322,40 @@ Trader.prototype.sell = function(amount, price, callback) {
 
 Trader.prototype.checkOrder = function(order, callback) {
   var check = function(err, data) {
-    if(err) return callback(err);
+    if(_.isEmpty(data))
+      err = new Error('no data (checkOrder)');
+
+    if(!_.isEmpty(data.error))
+      err = new Error(data.error);
+
+    if(err)
+      return log.error('Unable to check order', order, JSON.stringify(err));
 
     var result = data.result[order];
     var stillThere = result.status === 'open' || result.status === 'pending';
-    callback(undefined, !stillThere);
+    callback(err.message, !stillThere);
   };
 
-  let reqData = {txid: order};
-  let handler = (cb) => this.kraken.api('QueryOrders', reqData, this.handleResponse('checkOrder', cb));
-  util.retryCustom(retryCritical, _.bind(handler, this), _.bind(check, this));
+  this.kraken.api('QueryOrders', {txid: order}, _.bind(check, this));
 };
 
 Trader.prototype.cancelOrder = function(order, callback) {
-  let reqData = {txid: order};
-  let handler = (cb) => this.kraken.api('CancelOrder', reqData, this.handleResponse('cancelOrder', cb));
-  util.retryCustom(retryForever, _.bind(handler, this), callback);
+  var args = _.toArray(arguments);
+  var cancel = function(err, data) {
+    if(!err && _.isEmpty(data))
+      err = new Error('no data (cancelOrder)');
+    else if(!err && !_.isEmpty(data.error))
+      err = new Error(data.error);
+
+    if(err) {
+      log.error('unable to cancel order', order, '(', err, JSON.stringify(err), ')');
+      return this.retry(this.cancelOrder, args, err);
+    }
+
+    callback();
+  };
+
+  this.kraken.api('CancelOrder', {txid: order}, _.bind(cancel, this));
 };
 
 Trader.getCapabilities = function () {
@@ -332,7 +363,7 @@ Trader.getCapabilities = function () {
     name: 'Kraken',
     slug: 'kraken',
     currencies: ['CAD', 'EUR', 'GBP', 'JPY', 'USD', 'XBT', 'ETH'],
-    assets: ['XBT', 'LTC', 'GNO', 'ICN', 'MLN', 'REP', 'XDG', 'XLM', 'XMR', 'XRP', 'ZEC', 'ETH', 'BCH', 'DASH', 'EOS', 'ETC', 'USDT'],
+    assets: ['XBT', 'LTC', 'GNO', 'ICN', 'MLN', 'REP', 'XDG', 'XLM', 'XMR', 'XRP', 'ZEC', 'ETH', 'BCH', 'DASH', 'EOS', 'ETC'],
     markets: [
       //Tradeable againt ETH
       { pair: ['XBT', 'ETH'], minimalOrder: { amount: 0.01, unit: 'asset' }, precision: 5 },
@@ -421,9 +452,6 @@ Trader.getCapabilities = function () {
       { pair: ['GBP', 'XBT'], minimalOrder: { amount: 0.01, unit: 'asset' } },
       { pair: ['JPY', 'XBT'], minimalOrder: { amount: 1, unit: 'asset' }, precision: 0 },
       { pair: ['USD', 'XBT'], minimalOrder: { amount: 0.1, unit: 'asset' }, precision: 1 },
-
-      //Tradeable against USDT
-      { pair: ['USD', 'USDT'], minimalOrder: { amount: 0.1, unit: 'asset' }, precision: 2 },
     ],
     requires: ['key', 'secret'],
     providesHistory: 'date',

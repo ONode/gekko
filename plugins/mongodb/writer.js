@@ -59,14 +59,7 @@ var processCandle = function processCandle (candle, done) {
   this.marketTime = candle.start;
 
   this.candleCache.push(candle);
-  if (this.candleCache.length > 100) 
-    this.writeCandles();
-  done();
-}
-
-var finalize = function(done) {
-  this.writeCandles();
-  this.db = null;
+  _.defer(this.writeCandles);
   done();
 }
 
@@ -96,7 +89,6 @@ if (config.adviceWriter.enabled) {
 if (config.candleWriter.enabled) {
   log.debug('Enabling candleWriter.');
   Store.prototype.processCandle = processCandle;
-  Store.prototype.finalize = finalize;
 }
 
 module.exports = Store;

@@ -44,12 +44,4 @@ process.send('ready');
 process.on('message', function(m) {
   if(m.what === 'start')
     start(m.mode, m.config);
-
-  if(m.what === 'exit')
-    process.exit(0);
 });
-
-process.on('disconnect', function() {
-  console.log("disconnect");
-  process.exit(-1);
-})

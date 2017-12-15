@@ -35,7 +35,15 @@ config.tradingAdvisor = {
   method: 'MACD',
   candleSize: 1,
   historySize: 3,
-  adapter: 'sqlite'
+  adapter: 'sqlite',
+  talib: {
+    enabled: false,
+    version: '1.0.2'
+  },
+  tulind: {
+    enabled: false,
+    version: '0.8.7'
+  }
 }
 
 // Exponential Moving Averages settings:
@@ -390,7 +398,7 @@ config.sqlite = {
   dataDirectory: 'history',
   version: 0.1,
 
-  journalMode: require('./web/isWindows.js') ? 'DELETE' : 'WAL',
+  journalMode: 'WAL', // setting this to 'DEL' may prevent db locking on windows
 
   dependencies: []
 }
@@ -438,7 +446,7 @@ config.backtest = {
 config.importer = {
   daterange: {
     // NOTE: these dates are in UTC
-    from: "2017-11-01 00:00:00"
+    from: "2016-01-01 00:00:00"
   }
 }
 

@@ -1,14 +1,6 @@
+var tulind = require("tulind");
 var semver = require("semver");
 var _ = require('lodash');
-
-// validate that talib is installed, if not we'll throw an excepion which will
-// prevent further loading or out outside this module
-try {
-    var tulind = require("tulind");
-} catch (e) {
-    module.exports = null;
-    return;
-}
 
 var tulindError = 'Gekko was unable to configure Tulip Indicators:\n\t';
 
@@ -145,7 +137,7 @@ methods.aroon = {
 methods.aroonosc = {
     requires: ['optInTimePeriod'],
     create: (params) => {
-        verifyParams('aroonosc', params);
+        verifyParams('arronosc', params);
 
         return (data, callback) => execute(callback, {
             indicator: tulind.indicators.aroonosc,

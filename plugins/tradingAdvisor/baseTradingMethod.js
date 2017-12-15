@@ -9,17 +9,44 @@ var ENV = util.gekkoEnv();
 var mode = util.gekkoMode();
 var startTime = util.getStartTime();
 
-var talib = require(dirs.core + 'talib');
-if(talib == null) {
-  log.warn('TALIB indicators could not be loaded, they will be unavailable.');
+if(config.tradingAdvisor.talib.enabled) {
+  // verify talib is installed properly
+  var pluginHelper = require(dirs.core + 'pluginUtil');
+  var pluginMock = {
+    slug: 'tradingAdvisor',
+    dependencies: [{
+      module: 'talib',
+      version: config.tradingAdvisor.talib.version
+    }]
+  };
+
+  var cannotLoad = pluginHelper.cannotLoad(pluginMock);
+  if(cannotLoad)
+    util.die(cannotLoad);
+
+  var talib = require(dirs.core + 'talib');
 }
 
-var tulind = require(dirs.core + 'tulind');
-if(tulind == null) {
-  log.warn('TULIP indicators could not be loaded, they will be unavailable.');
+if(config.tradingAdvisor.tulind.enabled) {
+  // verify talib is installed properly
+  var pluginHelper = require(dirs.core + 'pluginUtil');
+  var pluginMock = {
+    slug: 'tradingAdvisor',
+    dependencies: [{
+      module: 'tulind',
+      version: config.tradingAdvisor.tulind.version
+    }]
+  };
+
+  var cannotLoad = pluginHelper.cannotLoad(pluginMock);
+  if(cannotLoad)
+    util.die(cannotLoad);
+
+  var tulind = require(dirs.core + 'tulind');
 }
 
 var indicatorsPath = dirs.methods + 'indicators/';
+
 var indicatorFiles = fs.readdirSync(indicatorsPath);
 var Indicators = {};
 
