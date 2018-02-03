@@ -177,13 +177,13 @@ var util = {
     return startTime;
   },
   retry: function(fn, callback) {
-    var operation = {
+    var options = {
       retries: 5,
       factor: 1.2,
       minTimeout: 1 * 1000,
       maxTimeout: 3 * 1000
     };
- 
+
     retryHelper(fn, options, callback);
   },
   retryCustom: function(options, fn, callback) {

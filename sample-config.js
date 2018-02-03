@@ -42,8 +42,7 @@ config.tradingAdvisor = {
 config.DEMA = {
   // EMA weight (α)
   // the higher the weight, the more smooth (and delayed) the line
-  short: 10,
-  long: 21,
+  weight: 21,
   // amount of candles to remember and base initial EMAs on
   // the difference between the EMAs (to act as triggers)
   thresholds: {
@@ -216,7 +215,8 @@ config.trader = {
   key: '',
   secret: '',
   username: '', // your username, only required for specific exchanges.
-  passphrase: '' // GDAX, requires a passphrase.
+  passphrase: '', // GDAX, requires a passphrase.
+  orderUpdateDelay: 1, // Number of minutes to adjust unfilled order prices
 }
 
 config.adviceLogger = {
@@ -283,6 +283,14 @@ config.pushbullet = {
     // will make Gekko messages start mit [GEKKO]
   tag: '[GEKKO]'
 };
+
+config.kodi = {
+  // if you have a username & pass, add it like below
+  // http://user:pass@ip-or-hostname:8080/jsonrpc
+  host: 'http://ip-or-hostname:8080/jsonrpc',
+  enabled: false,
+  sendMessageOnStart: true,
+}
 
 config.ircbot = {
   enabled: false,
